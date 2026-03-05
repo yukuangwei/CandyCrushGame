@@ -13,8 +13,12 @@
             <!-- 顶部状态栏 -->
             <div id="top-bar">
                 <div class="stat-item">
+                    <span class="stat-icon">&#9733;</span>
+                    <span id="score-display">0</span><span class="stat-label"> 积分</span>
+                </div>
+                <div class="stat-item">
                     <span class="stat-icon">&#9634;</span>
-                    <span id="empty-slots">54</span><span class="stat-label">/54 空位</span>
+                    <span id="empty-slots">48</span><span class="stat-label">/48 空位</span>
                 </div>
                 <div class="stat-item">
                     <span class="stat-icon">&#9883;</span>
@@ -33,6 +37,17 @@
                         <span class="tool-icon">&#10063;</span>
                         <span class="tool-count" id="copy-count">1</span>
                     </button>
+                </div>
+            </div>
+
+            <!-- 任务卡片 -->
+            <div id="task-card">
+                <div id="task-card-content">
+                    <div id="task-card-info">
+                        <span id="task-card-title">加载中...</span>
+                        <span id="task-card-progress"></span>
+                    </div>
+                    <button id="task-submit-btn" disabled>提交</button>
                 </div>
             </div>
 

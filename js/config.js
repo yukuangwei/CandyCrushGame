@@ -1,7 +1,7 @@
 // ========== 游戏配置 ==========
 const CONFIG = {
     GRID_COLS: 6,
-    GRID_ROWS: 9,
+    GRID_ROWS: 8,
     MAX_ELEMENT: 10,
     PRODUCTION_INTERVAL: 5000, // 5秒
     PRODUCTION_MAX: 5,

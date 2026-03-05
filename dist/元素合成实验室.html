@@ -161,6 +161,68 @@ html, body {
     padding: 0 3px;
 }
 
+/* ========== 任务卡片 ========== */
+#task-card {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    background: #ffffff;
+}
+
+#task-card-content {
+    display: flex;
+    align-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--grid-line);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    gap: 8px;
+}
+
+#task-card-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+#task-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#task-card-progress {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+#task-submit-btn {
+    flex-shrink: 0;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 16px;
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+#task-submit-btn:disabled {
+    background: var(--bg-card-light);
+    color: var(--text-secondary);
+    cursor: default;
+}
+
+#task-submit-btn:not(:disabled):active {
+    opacity: 0.8;
+}
+
 /* ========== 合成区域 ========== */
 #grid-container {
     flex: 1;
@@ -177,7 +239,7 @@ html, body {
 #grid {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
-    grid-template-rows: repeat(9, 1fr);
+    grid-template-rows: repeat(8, 1fr);
     gap: 4px;
     width: calc(100vw - 24px);
     max-width: 360px;
@@ -951,8 +1013,12 @@ html, body {
             <!-- 顶部状态栏 -->
             <div id="top-bar">
                 <div class="stat-item">
+                    <span class="stat-icon">&#9733;</span>
+                    <span id="score-display">0</span><span class="stat-label"> 积分</span>
+                </div>
+                <div class="stat-item">
                     <span class="stat-icon">&#9634;</span>
-                    <span id="empty-slots">54</span><span class="stat-label">/54 空位</span>
+                    <span id="empty-slots">48</span><span class="stat-label">/48 空位</span>
                 </div>
                 <div class="stat-item">
                     <span class="stat-icon">&#9883;</span>
@@ -971,6 +1037,17 @@ html, body {
                         <span class="tool-icon">&#10063;</span>
                         <span class="tool-count" id="copy-count">1</span>
                     </button>
+                </div>
+            </div>
+
+            <!-- 任务卡片 -->
+            <div id="task-card">
+                <div id="task-card-content">
+                    <div id="task-card-info">
+                        <span id="task-card-title">加载中...</span>
+                        <span id="task-card-progress"></span>
+                    </div>
+                    <button id="task-submit-btn" disabled>提交</button>
                 </div>
             </div>
 
@@ -1094,7 +1171,7 @@ html, body {
 // ========== 游戏配置 ==========
 const CONFIG = {
     GRID_COLS: 6,
-    GRID_ROWS: 9,
+    GRID_ROWS: 8,
     MAX_ELEMENT: 10,
     PRODUCTION_INTERVAL: 5000, // 5秒
     PRODUCTION_MAX: 5,
@@ -1164,6 +1241,10 @@ class ElementGame {
         this.mergeCountByElement = {};
         this.producedCount = 0;
         this.highestElement = 1;
+        this.score = 0;
+
+        // 当前任务
+        this.currentTask = null;
 
         // 任务状态
         this.dailyTasks = [];
@@ -1174,7 +1255,7 @@ class ElementGame {
 
         // 拖拽状态
         this.dragging = null;
-        this.dragSource = null; // { type: 'grid', index: number }
+        this.dragSource = null;
         this.dragElement = null;
 
         // UI缓存
@@ -1188,10 +1269,12 @@ class ElementGame {
         this.loadGame();
         this.buildGrid();
         this.initDailyTasks();
+        if (!this.currentTask) this.generateNewTask();
         this.bindEvents();
         this.initStarterElements();
         this.startProductionLoop();
         this.updateAllUI();
+        this.renderTaskCard();
     }
 
     // 新游戏初始方块 - 给玩家2个H和1个He作为起步
@@ -1228,6 +1311,11 @@ class ElementGame {
 
     // ========== 渲染网格 ==========
     renderGrid() {
+        // 安全清理：如果没有活跃拖拽但页面上有残留的拖拽元素，清除它们
+        if (!this.dragging) {
+            document.querySelectorAll('.element-dragging').forEach(el => el.remove());
+        }
+
         for (let i = 0; i < this.grid.length; i++) {
             const cell = this.gridCells[i];
             const el = this.grid[i];
@@ -1304,17 +1392,51 @@ class ElementGame {
         const emptyCells = this.getEmptyCells();
         if (emptyCells.length === 0) return;
 
-        const element = Math.random() < CONFIG.H_PROBABILITY ? 1 : 2;
+        // 自动生产范围: 1 ~ highestElement，低等级概率更高
+        let element;
+        if (this.highestElement <= 1) {
+            element = 1;
+        } else {
+            // 加权随机：等级越低概率越高
+            const weights = [];
+            for (let i = 1; i <= this.highestElement; i++) {
+                weights.push(Math.max(this.highestElement - i + 1, 1));
+            }
+            const totalWeight = weights.reduce((a, b) => a + b, 0);
+            let rand = Math.random() * totalWeight;
+            element = 1;
+            for (let i = 0; i < weights.length; i++) {
+                rand -= weights[i];
+                if (rand <= 0) {
+                    element = i + 1;
+                    break;
+                }
+            }
+        }
         // 随机选一个空位放入
         const targetIdx = emptyCells[Math.floor(Math.random() * emptyCells.length)];
         this.grid[targetIdx] = element;
         this.producedCount++;
-        if (element === 2) this.unlockedElements.add(2);
+        if (element >= 2) this.unlockedElements.add(element);
+        // 确保已解锁的元素一直保持
+        for (let i = 1; i <= element; i++) {
+            this.unlockedElements.add(i);
+        }
 
-        // 播放入场动画
-        this.renderGrid();
-        const block = this.gridCells[targetIdx].querySelector('.element-block');
-        if (block) block.classList.add('element-pop-in');
+        // 拖拽期间只更新新产生的单个格子，避免重建整个网格导致触摸事件断裂
+        if (this.dragging) {
+            const cell = this.gridCells[targetIdx];
+            const existing = cell.querySelector('.element-block');
+            if (existing) existing.remove();
+            cell.classList.add('occupied');
+            const block = this.createElementBlock(element);
+            block.classList.add('element-pop-in');
+            cell.appendChild(block);
+        } else {
+            this.renderGrid();
+            const block = this.gridCells[targetIdx].querySelector('.element-block');
+            if (block) block.classList.add('element-pop-in');
+        }
 
         this.updateTaskProgress('produce', 0, 1);
         this.updateAllUI();
@@ -1343,9 +1465,13 @@ class ElementGame {
         app.addEventListener('touchstart', (e) => this.onDragStart(e), { passive: false });
         app.addEventListener('touchmove', (e) => this.onDragMove(e), { passive: false });
         app.addEventListener('touchend', (e) => this.onDragEnd(e));
+        app.addEventListener('touchcancel', (e) => this.onDragEnd(e));
 
         // 加速按钮
         document.getElementById('speed-btn').addEventListener('click', () => this.speedUpProduction());
+
+        // 任务提交按钮
+        document.getElementById('task-submit-btn').addEventListener('click', () => this.submitTask());
 
         // 道具按钮
         document.querySelectorAll('.tool-btn').forEach(btn => {
@@ -1559,6 +1685,10 @@ class ElementGame {
         this.grid[targetIdx] = newElement;
         this.totalMerges++;
         this.mergeCountByElement[newElement] = (this.mergeCountByElement[newElement] || 0) + 1;
+
+        // 积分：合成N级元素得 N-1 积分
+        const earnedScore = currentElement; // 1级合2级得1分, 2级合3级得2分...
+        this.score += earnedScore;
 
         // 解锁元素
         const isNew = !this.unlockedElements.has(newElement);
@@ -1863,6 +1993,96 @@ class ElementGame {
         }
     }
 
+    // ========== 提交任务系统 ==========
+    generateNewTask() {
+        // 根据当前最高元素和进度生成合理任务
+        const maxEl = Math.max(this.highestElement, 2);
+        // 任务要求的元素等级: 1 ~ maxEl，偏向中低等级
+        const taskElement = Math.floor(Math.random() * maxEl) + 1;
+        // 需要提交的数量: 等级越高数量越少
+        let amount;
+        if (taskElement <= 2) {
+            amount = Math.floor(Math.random() * 4) + 3; // 3-6
+        } else if (taskElement <= 4) {
+            amount = Math.floor(Math.random() * 3) + 2; // 2-4
+        } else if (taskElement <= 6) {
+            amount = Math.floor(Math.random() * 2) + 1; // 1-2
+        } else {
+            amount = 1;
+        }
+
+        const elData = ELEMENTS[taskElement];
+        // 奖励积分 = 元素等级 * 数量 * 2
+        const reward = taskElement * amount * 2;
+
+        this.currentTask = {
+            element: taskElement,
+            amount: amount,
+            reward: reward,
+            title: `提交 ${amount} 个${elData.name}(${elData.symbol})`,
+        };
+        this.renderTaskCard();
+        this.saveGame();
+    }
+
+    renderTaskCard() {
+        const titleEl = document.getElementById('task-card-title');
+        const progressEl = document.getElementById('task-card-progress');
+        const btn = document.getElementById('task-submit-btn');
+
+        if (!this.currentTask) {
+            titleEl.textContent = '暂无任务';
+            progressEl.textContent = '';
+            btn.disabled = true;
+            return;
+        }
+
+        const task = this.currentTask;
+        const elData = ELEMENTS[task.element];
+        // 统计棋盘上该元素的数量
+        const onBoard = this.grid.filter(c => c === task.element).length;
+        const canSubmit = onBoard >= task.amount;
+
+        titleEl.textContent = `${task.title}`;
+        progressEl.textContent = `棋盘上: ${onBoard}个 | 奖励: +${task.reward}积分`;
+        btn.disabled = !canSubmit;
+        btn.textContent = canSubmit ? '提交' : `需${task.amount}个`;
+    }
+
+    submitTask() {
+        if (!this.currentTask) return;
+
+        const task = this.currentTask;
+        const onBoard = this.grid.filter(c => c === task.element).length;
+
+        if (onBoard < task.amount) {
+            const elData = ELEMENTS[task.element];
+            this.showToast(`棋盘上${elData.name}不足！需要${task.amount}个，当前${onBoard}个`);
+            return;
+        }
+
+        // 从棋盘上移除指定数量的元素
+        let removed = 0;
+        for (let i = 0; i < this.grid.length && removed < task.amount; i++) {
+            if (this.grid[i] === task.element) {
+                this.grid[i] = null;
+                removed++;
+            }
+        }
+
+        // 获得积分奖励
+        this.score += task.reward;
+        this.showToast(`任务完成！获得 ${task.reward} 积分`);
+
+        // 渲染网格
+        this.renderGrid();
+
+        // 自动生成新任务
+        this.generateNewTask();
+        this.updateAllUI();
+        this.saveGame();
+    }
+
     // ========== 图鉴 ==========
     renderEncyclopedia() {
         const container = document.getElementById('encyclopedia-grid');
@@ -2061,6 +2281,8 @@ class ElementGame {
         this.updateEmptySlots();
         this.updateCollectProgress();
         this.updateToolCounts();
+        this.updateScoreDisplay();
+        this.renderTaskCard();
     }
 
     updateEmptySlots() {
@@ -2091,6 +2313,10 @@ class ElementGame {
         document.getElementById('copy-count').textContent = this.tools.copy;
     }
 
+    updateScoreDisplay() {
+        document.getElementById('score-display').textContent = this.score;
+    }
+
     showToast(msg) {
         const toast = document.getElementById('toast');
         toast.textContent = msg;
@@ -2109,6 +2335,8 @@ class ElementGame {
             mergeCountByElement: this.mergeCountByElement,
             producedCount: this.producedCount,
             highestElement: this.highestElement,
+            score: this.score,
+            currentTask: this.currentTask,
             dailyTasks: this.dailyTasks,
             achievementProgress: this.achievementProgress,
             claimedAchievements: Array.from(this.claimedAchievements),
@@ -2141,6 +2369,8 @@ class ElementGame {
             if (save.mergeCountByElement) this.mergeCountByElement = save.mergeCountByElement;
             if (save.producedCount) this.producedCount = save.producedCount;
             if (save.highestElement) this.highestElement = save.highestElement;
+            if (save.score !== undefined) this.score = save.score;
+            if (save.currentTask) this.currentTask = save.currentTask;
             if (save.dailyTasks) this.dailyTasks = save.dailyTasks;
             if (save.achievementProgress) this.achievementProgress = save.achievementProgress;
             if (save.claimedAchievements) this.claimedAchievements = new Set(save.claimedAchievements);

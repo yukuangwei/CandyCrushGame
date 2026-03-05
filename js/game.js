@@ -14,6 +14,10 @@ class ElementGame {
         this.mergeCountByElement = {};
         this.producedCount = 0;
         this.highestElement = 1;
+        this.score = 0;
+
+        // 当前任务
+        this.currentTask = null;
 
         // 任务状态
         this.dailyTasks = [];
@@ -24,7 +28,7 @@ class ElementGame {
 
         // 拖拽状态
         this.dragging = null;
-        this.dragSource = null; // { type: 'grid', index: number }
+        this.dragSource = null;
         this.dragElement = null;
 
         // UI缓存
@@ -38,10 +42,12 @@ class ElementGame {
         this.loadGame();
         this.buildGrid();
         this.initDailyTasks();
+        if (!this.currentTask) this.generateNewTask();
         this.bindEvents();
         this.initStarterElements();
         this.startProductionLoop();
         this.updateAllUI();
+        this.renderTaskCard();
     }
 
     // 新游戏初始方块 - 给玩家2个H和1个He作为起步
@@ -78,6 +84,11 @@ class ElementGame {
 
     // ========== 渲染网格 ==========
     renderGrid() {
+        // 安全清理：如果没有活跃拖拽但页面上有残留的拖拽元素，清除它们
+        if (!this.dragging) {
+            document.querySelectorAll('.element-dragging').forEach(el => el.remove());
+        }
+
         for (let i = 0; i < this.grid.length; i++) {
             const cell = this.gridCells[i];
             const el = this.grid[i];
@@ -154,17 +165,51 @@ class ElementGame {
         const emptyCells = this.getEmptyCells();
         if (emptyCells.length === 0) return;
 
-        const element = Math.random() < CONFIG.H_PROBABILITY ? 1 : 2;
+        // 自动生产范围: 1 ~ highestElement，低等级概率更高
+        let element;
+        if (this.highestElement <= 1) {
+            element = 1;
+        } else {
+            // 加权随机：等级越低概率越高
+            const weights = [];
+            for (let i = 1; i <= this.highestElement; i++) {
+                weights.push(Math.max(this.highestElement - i + 1, 1));
+            }
+            const totalWeight = weights.reduce((a, b) => a + b, 0);
+            let rand = Math.random() * totalWeight;
+            element = 1;
+            for (let i = 0; i < weights.length; i++) {
+                rand -= weights[i];
+                if (rand <= 0) {
+                    element = i + 1;
+                    break;
+                }
+            }
+        }
         // 随机选一个空位放入
         const targetIdx = emptyCells[Math.floor(Math.random() * emptyCells.length)];
         this.grid[targetIdx] = element;
         this.producedCount++;
-        if (element === 2) this.unlockedElements.add(2);
+        if (element >= 2) this.unlockedElements.add(element);
+        // 确保已解锁的元素一直保持
+        for (let i = 1; i <= element; i++) {
+            this.unlockedElements.add(i);
+        }
 
-        // 播放入场动画
-        this.renderGrid();
-        const block = this.gridCells[targetIdx].querySelector('.element-block');
-        if (block) block.classList.add('element-pop-in');
+        // 拖拽期间只更新新产生的单个格子，避免重建整个网格导致触摸事件断裂
+        if (this.dragging) {
+            const cell = this.gridCells[targetIdx];
+            const existing = cell.querySelector('.element-block');
+            if (existing) existing.remove();
+            cell.classList.add('occupied');
+            const block = this.createElementBlock(element);
+            block.classList.add('element-pop-in');
+            cell.appendChild(block);
+        } else {
+            this.renderGrid();
+            const block = this.gridCells[targetIdx].querySelector('.element-block');
+            if (block) block.classList.add('element-pop-in');
+        }
 
         this.updateTaskProgress('produce', 0, 1);
         this.updateAllUI();
@@ -193,9 +238,13 @@ class ElementGame {
         app.addEventListener('touchstart', (e) => this.onDragStart(e), { passive: false });
         app.addEventListener('touchmove', (e) => this.onDragMove(e), { passive: false });
         app.addEventListener('touchend', (e) => this.onDragEnd(e));
+        app.addEventListener('touchcancel', (e) => this.onDragEnd(e));
 
         // 加速按钮
         document.getElementById('speed-btn').addEventListener('click', () => this.speedUpProduction());
+
+        // 任务提交按钮
+        document.getElementById('task-submit-btn').addEventListener('click', () => this.submitTask());
 
         // 道具按钮
         document.querySelectorAll('.tool-btn').forEach(btn => {
@@ -409,6 +458,10 @@ class ElementGame {
         this.grid[targetIdx] = newElement;
         this.totalMerges++;
         this.mergeCountByElement[newElement] = (this.mergeCountByElement[newElement] || 0) + 1;
+
+        // 积分：合成N级元素得 N-1 积分
+        const earnedScore = currentElement; // 1级合2级得1分, 2级合3级得2分...
+        this.score += earnedScore;
 
         // 解锁元素
         const isNew = !this.unlockedElements.has(newElement);
@@ -713,6 +766,96 @@ class ElementGame {
         }
     }
 
+    // ========== 提交任务系统 ==========
+    generateNewTask() {
+        // 根据当前最高元素和进度生成合理任务
+        const maxEl = Math.max(this.highestElement, 2);
+        // 任务要求的元素等级: 1 ~ maxEl，偏向中低等级
+        const taskElement = Math.floor(Math.random() * maxEl) + 1;
+        // 需要提交的数量: 等级越高数量越少
+        let amount;
+        if (taskElement <= 2) {
+            amount = Math.floor(Math.random() * 4) + 3; // 3-6
+        } else if (taskElement <= 4) {
+            amount = Math.floor(Math.random() * 3) + 2; // 2-4
+        } else if (taskElement <= 6) {
+            amount = Math.floor(Math.random() * 2) + 1; // 1-2
+        } else {
+            amount = 1;
+        }
+
+        const elData = ELEMENTS[taskElement];
+        // 奖励积分 = 元素等级 * 数量 * 2
+        const reward = taskElement * amount * 2;
+
+        this.currentTask = {
+            element: taskElement,
+            amount: amount,
+            reward: reward,
+            title: `提交 ${amount} 个${elData.name}(${elData.symbol})`,
+        };
+        this.renderTaskCard();
+        this.saveGame();
+    }
+
+    renderTaskCard() {
+        const titleEl = document.getElementById('task-card-title');
+        const progressEl = document.getElementById('task-card-progress');
+        const btn = document.getElementById('task-submit-btn');
+
+        if (!this.currentTask) {
+            titleEl.textContent = '暂无任务';
+            progressEl.textContent = '';
+            btn.disabled = true;
+            return;
+        }
+
+        const task = this.currentTask;
+        const elData = ELEMENTS[task.element];
+        // 统计棋盘上该元素的数量
+        const onBoard = this.grid.filter(c => c === task.element).length;
+        const canSubmit = onBoard >= task.amount;
+
+        titleEl.textContent = `${task.title}`;
+        progressEl.textContent = `棋盘上: ${onBoard}个 | 奖励: +${task.reward}积分`;
+        btn.disabled = !canSubmit;
+        btn.textContent = canSubmit ? '提交' : `需${task.amount}个`;
+    }
+
+    submitTask() {
+        if (!this.currentTask) return;
+
+        const task = this.currentTask;
+        const onBoard = this.grid.filter(c => c === task.element).length;
+
+        if (onBoard < task.amount) {
+            const elData = ELEMENTS[task.element];
+            this.showToast(`棋盘上${elData.name}不足！需要${task.amount}个，当前${onBoard}个`);
+            return;
+        }
+
+        // 从棋盘上移除指定数量的元素
+        let removed = 0;
+        for (let i = 0; i < this.grid.length && removed < task.amount; i++) {
+            if (this.grid[i] === task.element) {
+                this.grid[i] = null;
+                removed++;
+            }
+        }
+
+        // 获得积分奖励
+        this.score += task.reward;
+        this.showToast(`任务完成！获得 ${task.reward} 积分`);
+
+        // 渲染网格
+        this.renderGrid();
+
+        // 自动生成新任务
+        this.generateNewTask();
+        this.updateAllUI();
+        this.saveGame();
+    }
+
     // ========== 图鉴 ==========
     renderEncyclopedia() {
         const container = document.getElementById('encyclopedia-grid');
@@ -911,6 +1054,8 @@ class ElementGame {
         this.updateEmptySlots();
         this.updateCollectProgress();
         this.updateToolCounts();
+        this.updateScoreDisplay();
+        this.renderTaskCard();
     }
 
     updateEmptySlots() {
@@ -941,6 +1086,10 @@ class ElementGame {
         document.getElementById('copy-count').textContent = this.tools.copy;
     }
 
+    updateScoreDisplay() {
+        document.getElementById('score-display').textContent = this.score;
+    }
+
     showToast(msg) {
         const toast = document.getElementById('toast');
         toast.textContent = msg;
@@ -959,6 +1108,8 @@ class ElementGame {
             mergeCountByElement: this.mergeCountByElement,
             producedCount: this.producedCount,
             highestElement: this.highestElement,
+            score: this.score,
+            currentTask: this.currentTask,
             dailyTasks: this.dailyTasks,
             achievementProgress: this.achievementProgress,
             claimedAchievements: Array.from(this.claimedAchievements),
@@ -991,6 +1142,8 @@ class ElementGame {
             if (save.mergeCountByElement) this.mergeCountByElement = save.mergeCountByElement;
             if (save.producedCount) this.producedCount = save.producedCount;
             if (save.highestElement) this.highestElement = save.highestElement;
+            if (save.score !== undefined) this.score = save.score;
+            if (save.currentTask) this.currentTask = save.currentTask;
             if (save.dailyTasks) this.dailyTasks = save.dailyTasks;
             if (save.achievementProgress) this.achievementProgress = save.achievementProgress;
             if (save.claimedAchievements) this.claimedAchievements = new Set(save.claimedAchievements);
