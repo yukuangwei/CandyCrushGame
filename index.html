@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>元素合成实验室</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 主游戏界面 -->
+        <div id="game-screen" class="screen active">
+            <!-- 顶部状态栏 -->
+            <div id="top-bar">
+                <div class="stat-item">
+                    <span class="stat-icon">&#9634;</span>
+                    <span id="empty-slots">36</span><span class="stat-label">/36 空位</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">&#9883;</span>
+                    <span id="collect-progress">0</span><span class="stat-label">/10 元素</span>
+                </div>
+                <div class="stat-item tools-bar">
+                    <button class="tool-btn" data-tool="shovel" title="铲子">
+                        <span class="tool-icon">&#9935;</span>
+                        <span class="tool-count" id="shovel-count">3</span>
+                    </button>
+                    <button class="tool-btn" data-tool="swap" title="交换器">
+                        <span class="tool-icon">&#8644;</span>
+                        <span class="tool-count" id="swap-count">2</span>
+                    </button>
+                    <button class="tool-btn" data-tool="copy" title="复制器">
+                        <span class="tool-icon">&#10063;</span>
+                        <span class="tool-count" id="copy-count">1</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 合成区域 -->
+            <div id="grid-container">
+                <div id="grid"></div>
+            </div>
+
+            <!-- 生产单元区域 -->
+            <div id="production-area">
+                <div id="production-header">
+                    <span class="prod-title">生产单元</span>
+                    <div id="prod-timer">
+                        <div id="prod-timer-bar"></div>
+                    </div>
+                    <span id="prod-status">0/5</span>
+                </div>
+                <div id="production-slots">
+                    <!-- 动态生成 -->
+                </div>
+                <button id="speed-btn">加速生产</button>
+            </div>
+
+            <!-- 底部菜单 -->
+            <div id="bottom-menu">
+                <button class="menu-btn" data-page="encyclopedia">
+                    <span class="menu-icon">&#128214;</span>
+                    <span>图鉴</span>
+                </button>
+                <button class="menu-btn" data-page="tasks">
+                    <span class="menu-icon">&#128203;</span>
+                    <span>任务</span>
+                </button>
+                <button class="menu-btn" data-page="shop">
+                    <span class="menu-icon">&#128722;</span>
+                    <span>商城</span>
+                </button>
+                <button class="menu-btn" data-page="settings">
+                    <span class="menu-icon">&#9881;</span>
+                    <span>设置</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 图鉴界面 -->
+        <div id="encyclopedia-screen" class="screen">
+            <div class="screen-header">
+                <button class="back-btn">&larr; 返回</button>
+                <h2>元素图鉴</h2>
+                <span id="enc-progress">0/10</span>
+            </div>
+            <div id="encyclopedia-grid"></div>
+        </div>
+
+        <!-- 任务界面 -->
+        <div id="tasks-screen" class="screen">
+            <div class="screen-header">
+                <button class="back-btn">&larr; 返回</button>
+                <h2>任务中心</h2>
+            </div>
+            <div class="tab-bar">
+                <button class="tab-btn active" data-tab="daily">每日任务</button>
+                <button class="tab-btn" data-tab="achievement">成就</button>
+            </div>
+            <div id="daily-tasks" class="task-list active"></div>
+            <div id="achievement-tasks" class="task-list"></div>
+        </div>
+
+        <!-- 商城界面 -->
+        <div id="shop-screen" class="screen">
+            <div class="screen-header">
+                <button class="back-btn">&larr; 返回</button>
+                <h2>商城</h2>
+            </div>
+            <div id="shop-list"></div>
+        </div>
+
+        <!-- 设置界面 -->
+        <div id="settings-screen" class="screen">
+            <div class="screen-header">
+                <button class="back-btn">&larr; 返回</button>
+                <h2>设置</h2>
+            </div>
+            <div id="settings-list">
+                <div class="setting-item">
+                    <span>音效</span>
+                    <label class="toggle">
+                        <input type="checkbox" id="sound-toggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <span>振动</span>
+                    <label class="toggle">
+                        <input type="checkbox" id="vibrate-toggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <button id="reset-btn" class="danger-btn">重置游戏</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 元素详情弹窗 -->
+        <div id="element-detail-modal" class="modal hidden">
+            <div class="modal-overlay"></div>
+            <div class="modal-content element-detail">
+                <button class="modal-close">&times;</button>
+                <div id="detail-element-icon" class="detail-icon"></div>
+                <h3 id="detail-element-name"></h3>
+                <div id="detail-element-info"></div>
+            </div>
+        </div>
+
+        <!-- 合成特效层 -->
+        <div id="effects-layer"></div>
+
+        <!-- Toast 提示 -->
+        <div id="toast" class="hidden"></div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>

@@ -1,0 +1,2228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>元素合成实验室</title>
+    <style>
+/* ========== 全局样式 ========== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+:root {
+    --primary: #4A90D9;
+    --primary-dark: #357ABD;
+    --bg: #0a0e27;
+    --bg-card: #151a3a;
+    --bg-card-light: #1e2550;
+    --text: #e8eaf6;
+    --text-secondary: #8892b0;
+    --accent: #64ffda;
+    --danger: #ff6b6b;
+    --warning: #ffd93d;
+    --success: #6bcb77;
+    --grid-bg: #0d1230;
+    --grid-line: #1a2255;
+    --cell-bg: #111640;
+    --shadow: 0 4px 20px rgba(0,0,0,0.4);
+    --radius: 12px;
+    --radius-sm: 8px;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+}
+
+#app {
+    width: 100%;
+    height: 100%;
+    max-width: 430px;
+    margin: 0 auto;
+    position: relative;
+    overflow: hidden;
+}
+
+/* ========== 页面切换 ========== */
+.screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: var(--bg);
+}
+
+.screen.active {
+    display: flex;
+}
+
+/* ========== 顶部状态栏 ========== */
+#top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px 8px;
+    background: linear-gradient(180deg, #0d1230 0%, transparent 100%);
+    gap: 8px;
+    flex-shrink: 0;
+    z-index: 10;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--grid-line);
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.stat-icon {
+    margin-right: 4px;
+    font-size: 14px;
+}
+
+.stat-label {
+    color: var(--text-secondary);
+    margin-left: 1px;
+}
+
+.tools-bar {
+    display: flex;
+    gap: 4px;
+    padding: 2px 4px;
+    background: var(--bg-card);
+    border: 1px solid var(--grid-line);
+    border-radius: 20px;
+}
+
+.tool-btn {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: var(--bg-card-light);
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.tool-btn:active {
+    transform: scale(0.9);
+    background: var(--primary);
+}
+
+.tool-btn.active {
+    background: var(--primary);
+    box-shadow: 0 0 10px rgba(74, 144, 217, 0.5);
+}
+
+.tool-icon {
+    font-size: 16px;
+    color: var(--text);
+}
+
+.tool-count {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 16px;
+    height: 16px;
+    line-height: 16px;
+    text-align: center;
+    font-size: 10px;
+    background: var(--accent);
+    color: #000;
+    border-radius: 8px;
+    font-weight: bold;
+    padding: 0 3px;
+}
+
+/* ========== 合成区域 ========== */
+#grid-container {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 6px 12px 4px;
+    min-height: 0;
+    position: relative;
+}
+
+#grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    grid-template-rows: repeat(6, 1fr);
+    gap: 4px;
+    width: 100%;
+    max-width: 360px;
+    aspect-ratio: 1;
+    background: var(--grid-bg);
+    border: 2px solid var(--grid-line);
+    border-radius: var(--radius);
+    padding: 6px;
+    margin-top: 4px;
+}
+
+.grid-cell {
+    background: var(--cell-bg);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--grid-line);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.2s, background 0.2s;
+    aspect-ratio: 1;
+}
+
+.grid-cell.highlight {
+    border-color: var(--accent);
+    background: rgba(100, 255, 218, 0.08);
+}
+
+.grid-cell.highlight-merge {
+    border-color: var(--warning);
+    background: rgba(255, 217, 61, 0.08);
+}
+
+.grid-cell.occupied {
+    border-color: transparent;
+}
+
+/* ========== 元素方块 ========== */
+.element-block {
+    width: 90%;
+    height: 90%;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    position: relative;
+    cursor: grab;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15);
+}
+
+.element-block:active {
+    cursor: grabbing;
+    transform: scale(1.1);
+    z-index: 100;
+}
+
+.element-block .element-symbol {
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.element-block .element-number {
+    font-size: 9px;
+    opacity: 0.8;
+    line-height: 1;
+    margin-top: 1px;
+}
+
+/* 元素颜色 - 每个元素独特颜色 */
+.element-1  { background: linear-gradient(135deg, #4fc3f7, #0288d1); color: #fff; }
+.element-2  { background: linear-gradient(135deg, #b0bec5, #607d8b); color: #fff; }
+.element-3  { background: linear-gradient(135deg, #ef5350, #c62828); color: #fff; }
+.element-4  { background: linear-gradient(135deg, #66bb6a, #2e7d32); color: #fff; }
+.element-5  { background: linear-gradient(135deg, #ab47bc, #6a1b9a); color: #fff; }
+.element-6  { background: linear-gradient(135deg, #42a5f5, #1565c0); color: #fff; }
+.element-7  { background: linear-gradient(135deg, #26c6da, #00838f); color: #fff; }
+.element-8  { background: linear-gradient(135deg, #ff7043, #d84315); color: #fff; }
+.element-9  { background: linear-gradient(135deg, #ffee58, #f9a825); color: #333; }
+.element-10 { background: linear-gradient(135deg, #ec407a, #ad1457); color: #fff; }
+
+/* 拖拽中的元素 */
+.element-dragging {
+    position: fixed;
+    z-index: 1000;
+    pointer-events: none;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 20px rgba(100, 255, 218, 0.3);
+    transform: translate(-50%, -50%) scale(1.15);
+    opacity: 0.95;
+}
+
+.element-dragging .element-symbol {
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.element-dragging .element-number {
+    font-size: 9px;
+    opacity: 0.8;
+    line-height: 1;
+    margin-top: 1px;
+}
+
+/* ========== 生产单元区域 ========== */
+#production-area {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    background: var(--bg-card);
+    border-top: 1px solid var(--grid-line);
+    margin: 0 8px;
+    border-radius: var(--radius) var(--radius) 0 0;
+}
+
+#production-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.prod-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+#prod-timer {
+    flex: 1;
+    height: 6px;
+    background: var(--grid-bg);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+#prod-timer-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+    border-radius: 3px;
+    transition: width 0.2s linear;
+}
+
+#prod-status {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+#production-slots {
+    display: flex;
+    gap: 8px;
+    min-height: 48px;
+    align-items: center;
+    padding: 4px 0;
+}
+
+.prod-slot {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--cell-bg);
+    border: 2px dashed var(--grid-line);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    flex-shrink: 0;
+    transition: border-color 0.2s, transform 0.2s;
+}
+
+.prod-slot.filled {
+    border-style: solid;
+    border-color: transparent;
+}
+
+.prod-slot.filled:active {
+    transform: scale(1.1);
+}
+
+.prod-slot .element-block {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+}
+
+#speed-btn {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 8px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+}
+
+#speed-btn:active {
+    transform: scale(0.97);
+    opacity: 0.85;
+}
+
+/* ========== 底部菜单 ========== */
+#bottom-menu {
+    flex-shrink: 0;
+    display: flex;
+    background: var(--bg-card);
+    border-top: 1px solid var(--grid-line);
+    padding: 6px 8px 12px;
+}
+
+.menu-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    transition: color 0.2s, background 0.2s;
+}
+
+.menu-btn:active {
+    background: var(--bg-card-light);
+    color: var(--accent);
+}
+
+.menu-icon {
+    font-size: 22px;
+}
+
+/* ========== 页面头部 ========== */
+.screen-header {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--grid-line);
+    flex-shrink: 0;
+}
+
+.screen-header h2 {
+    flex: 1;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.back-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px 8px;
+    white-space: nowrap;
+}
+
+#enc-progress {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+/* ========== 图鉴 ========== */
+#encyclopedia-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    padding: 16px;
+}
+
+.enc-card {
+    background: var(--bg-card);
+    border: 1px solid var(--grid-line);
+    border-radius: var(--radius);
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s;
+}
+
+.enc-card:active {
+    transform: scale(0.95);
+}
+
+.enc-card.unlocked {
+    border-color: var(--accent);
+}
+
+.enc-card.locked {
+    opacity: 0.5;
+}
+
+.enc-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 800;
+}
+
+.enc-card.locked .enc-icon {
+    background: var(--bg-card-light) !important;
+    color: var(--text-secondary) !important;
+}
+
+.enc-name {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.enc-number {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+/* ========== 任务 ========== */
+.tab-bar {
+    display: flex;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--grid-line);
+    flex-shrink: 0;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+}
+
+.tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.task-list {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 16px;
+}
+
+.task-list.active {
+    display: flex;
+}
+
+.task-card {
+    background: var(--bg-card);
+    border: 1px solid var(--grid-line);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+}
+
+.task-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.task-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.task-progress-bar {
+    height: 6px;
+    background: var(--grid-bg);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+.task-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+    border-radius: 3px;
+    transition: width 0.3s;
+}
+
+.task-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+}
+
+.task-reward {
+    color: var(--warning);
+}
+
+.task-claim-btn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 12px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.task-claim-btn:disabled {
+    background: var(--bg-card-light);
+    color: var(--text-secondary);
+    cursor: default;
+}
+
+.task-claimed {
+    color: var(--success);
+    font-weight: 600;
+}
+
+/* ========== 商城 ========== */
+#shop-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+}
+
+.shop-card {
+    background: var(--bg-card);
+    border: 1px solid var(--grid-line);
+    border-radius: var(--radius);
+    padding: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.shop-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--bg-card-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.shop-info {
+    flex: 1;
+}
+
+.shop-name {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.shop-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.shop-buy-btn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 16px;
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.shop-buy-btn:active {
+    opacity: 0.8;
+}
+
+/* ========== 设置 ========== */
+#settings-list {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--grid-line);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    font-size: 14px;
+}
+
+.toggle {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    cursor: pointer;
+}
+
+.toggle input {
+    display: none;
+}
+
+.toggle-slider {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--bg-card-light);
+    border-radius: 12px;
+    transition: background 0.3s;
+}
+
+.toggle-slider::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.3s;
+}
+
+.toggle input:checked + .toggle-slider {
+    background: var(--accent);
+}
+
+.toggle input:checked + .toggle-slider::before {
+    transform: translateX(20px);
+}
+
+.danger-btn {
+    width: 100%;
+    padding: 10px;
+    background: var(--danger);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* ========== 弹窗 ========== */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-overlay {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6);
+}
+
+.modal-content {
+    position: relative;
+    background: var(--bg-card);
+    border: 1px solid var(--grid-line);
+    border-radius: var(--radius);
+    padding: 24px;
+    max-width: 320px;
+    width: 85%;
+    z-index: 1;
+}
+
+.modal-close {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 24px;
+    cursor: pointer;
+}
+
+.element-detail {
+    text-align: center;
+}
+
+.detail-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    margin: 0 auto 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    font-weight: 800;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+
+.element-detail h3 {
+    font-size: 20px;
+    margin-bottom: 12px;
+}
+
+#detail-element-info {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    text-align: left;
+}
+
+#detail-element-info p {
+    margin-bottom: 6px;
+}
+
+/* ========== 特效 ========== */
+#effects-layer {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 1500;
+}
+
+.merge-effect {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(100, 255, 218, 0.8), transparent 70%);
+    animation: mergeFlash 0.5s ease-out forwards;
+    transform: translate(-50%, -50%);
+}
+
+@keyframes mergeFlash {
+    0% { transform: translate(-50%, -50%) scale(0.3); opacity: 1; }
+    60% { transform: translate(-50%, -50%) scale(1.5); opacity: 0.6; }
+    100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
+}
+
+.sparkle {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: sparkle 0.6s ease-out forwards;
+}
+
+@keyframes sparkle {
+    0% { transform: translate(0,0) scale(1); opacity: 1; }
+    100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+}
+
+.level-up-text {
+    position: absolute;
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--warning);
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    animation: floatUp 1s ease-out forwards;
+    white-space: nowrap;
+    transform: translate(-50%, -50%);
+}
+
+@keyframes floatUp {
+    0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+    30% { transform: translate(-50%, -80%) scale(1.2); opacity: 1; }
+    100% { transform: translate(-50%, -120%) scale(1); opacity: 0; }
+}
+
+/* ========== Toast ========== */
+#toast {
+    position: fixed;
+    bottom: 120px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(30, 37, 80, 0.95);
+    color: var(--text);
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    z-index: 3000;
+    border: 1px solid var(--grid-line);
+    white-space: nowrap;
+    animation: toastIn 0.3s ease-out;
+}
+
+#toast.hidden {
+    display: none;
+}
+
+@keyframes toastIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ========== 网格满提示 ========== */
+.grid-full-warning {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 107, 107, 0.9);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    animation: pulse 1.5s infinite;
+    z-index: 20;
+    white-space: nowrap;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+/* ========== 滚动条 ========== */
+.screen::-webkit-scrollbar {
+    width: 3px;
+}
+
+.screen::-webkit-scrollbar-thumb {
+    background: var(--grid-line);
+    border-radius: 3px;
+}
+
+/* ========== 隐藏元素 ========== */
+.hidden {
+    visibility: hidden !important;
+}
+
+/* ========== 新元素入场动画 ========== */
+.element-pop-in {
+    animation: popIn 0.3s ease-out;
+}
+
+@keyframes popIn {
+    0% { transform: scale(0); opacity: 0; }
+    70% { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* ========== 响应式 ========== */
+@media (max-height: 600px) {
+    #grid {
+        max-width: 280px;
+    }
+    .element-block .element-symbol {
+        font-size: 14px;
+    }
+    .element-block .element-number {
+        font-size: 8px;
+    }
+}
+
+</style>
+</head>
+<body>
+    <div id="app">
+        <!-- 主游戏界面 -->
+        <div id="game-screen" class="screen active">
+            <!-- 顶部状态栏 -->
+            <div id="top-bar">
+                <div class="stat-item">
+                    <span class="stat-icon">&#9634;</span>
+                    <span id="empty-slots">36</span><span class="stat-label">/36 空位</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">&#9883;</span>
+                    <span id="collect-progress">0</span><span class="stat-label">/10 元素</span>
+                </div>
+                <div class="stat-item tools-bar">
+                    <button class="tool-btn" data-tool="shovel" title="铲子">
+                        <span class="tool-icon">&#9935;</span>
+                        <span class="tool-count" id="shovel-count">3</span>
+                    </button>
+                    <button class="tool-btn" data-tool="swap" title="交换器">
+                        <span class="tool-icon">&#8644;</span>
+                        <span class="tool-count" id="swap-count">2</span>
+                    </button>
+                    <button class="tool-btn" data-tool="copy" title="复制器">
+                        <span class="tool-icon">&#10063;</span>
+                        <span class="tool-count" id="copy-count">1</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 合成区域 -->
+            <div id="grid-container">
+                <div id="grid"></div>
+            </div>
+
+            <!-- 生产单元区域 -->
+            <div id="production-area">
+                <div id="production-header">
+                    <span class="prod-title">生产单元</span>
+                    <div id="prod-timer">
+                        <div id="prod-timer-bar"></div>
+                    </div>
+                    <span id="prod-status">0/5</span>
+                </div>
+                <div id="production-slots">
+                    <!-- 动态生成 -->
+                </div>
+                <button id="speed-btn">加速生产</button>
+            </div>
+
+            <!-- 底部菜单 -->
+            <div id="bottom-menu">
+                <button class="menu-btn" data-page="encyclopedia">
+                    <span class="menu-icon">&#128214;</span>
+                    <span>图鉴</span>
+                </button>
+                <button class="menu-btn" data-page="tasks">
+                    <span class="menu-icon">&#128203;</span>
+                    <span>任务</span>
+                </button>
+                <button class="menu-btn" data-page="shop">
+                    <span class="menu-icon">&#128722;</span>
+                    <span>商城</span>
+                </button>
+                <button class="menu-btn" data-page="settings">
+                    <span class="menu-icon">&#9881;</span>
+                    <span>设置</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 图鉴界面 -->
+        <div id="encyclopedia-screen" class="screen">
+            <div class="screen-header">
+                <button class="back-btn">&larr; 返回</button>
+                <h2>元素图鉴</h2>
+                <span id="enc-progress">0/10</span>
+            </div>
+            <div id="encyclopedia-grid"></div>
+        </div>
+
+        <!-- 任务界面 -->
+        <div id="tasks-screen" class="screen">
+            <div class="screen-header">
+                <button class="back-btn">&larr; 返回</button>
+                <h2>任务中心</h2>
+            </div>
+            <div class="tab-bar">
+                <button class="tab-btn active" data-tab="daily">每日任务</button>
+                <button class="tab-btn" data-tab="achievement">成就</button>
+            </div>
+            <div id="daily-tasks" class="task-list active"></div>
+            <div id="achievement-tasks" class="task-list"></div>
+        </div>
+
+        <!-- 商城界面 -->
+        <div id="shop-screen" class="screen">
+            <div class="screen-header">
+                <button class="back-btn">&larr; 返回</button>
+                <h2>商城</h2>
+            </div>
+            <div id="shop-list"></div>
+        </div>
+
+        <!-- 设置界面 -->
+        <div id="settings-screen" class="screen">
+            <div class="screen-header">
+                <button class="back-btn">&larr; 返回</button>
+                <h2>设置</h2>
+            </div>
+            <div id="settings-list">
+                <div class="setting-item">
+                    <span>音效</span>
+                    <label class="toggle">
+                        <input type="checkbox" id="sound-toggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <span>振动</span>
+                    <label class="toggle">
+                        <input type="checkbox" id="vibrate-toggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <button id="reset-btn" class="danger-btn">重置游戏</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 元素详情弹窗 -->
+        <div id="element-detail-modal" class="modal hidden">
+            <div class="modal-overlay"></div>
+            <div class="modal-content element-detail">
+                <button class="modal-close">&times;</button>
+                <div id="detail-element-icon" class="detail-icon"></div>
+                <h3 id="detail-element-name"></h3>
+                <div id="detail-element-info"></div>
+            </div>
+        </div>
+
+        <!-- 合成特效层 -->
+        <div id="effects-layer"></div>
+
+        <!-- Toast 提示 -->
+        <div id="toast" class="hidden"></div>
+    </div>
+
+    <script>
+// ========== 游戏配置 ==========
+const CONFIG = {
+    GRID_SIZE: 6,
+    MAX_ELEMENT: 10,
+    PRODUCTION_INTERVAL: 5000, // 5秒
+    PRODUCTION_MAX: 5,
+    H_PROBABILITY: 0.7, // 氢的生成概率
+    SPEED_BOOST_DURATION: 1000, // 加速后1秒立即生产
+};
+
+// ========== 元素数据 ==========
+const ELEMENTS = {
+    1:  { symbol: 'H',  name: '氢',  nameEn: 'Hydrogen',  number: 1,  year: '1766', desc: '宇宙中最丰富的元素，太阳的主要燃料。无色无味的气体，是最轻的元素。', use: '火箭燃料、氢能源、化工原料' },
+    2:  { symbol: 'He', name: '氦',  nameEn: 'Helium',    number: 2,  year: '1868', desc: '惰性气体，不参与化学反应。在太阳光谱中首次被发现，因此以太阳神命名。', use: '气球填充、深潜呼吸气、超导冷却' },
+    3:  { symbol: 'Li', name: '锂',  nameEn: 'Lithium',   number: 3,  year: '1817', desc: '最轻的金属元素，密度仅为水的一半。在电池技术中扮演核心角色。', use: '锂电池、精神科药物、合金材料' },
+    4:  { symbol: 'Be', name: '铍',  nameEn: 'Beryllium', number: 4,  year: '1798', desc: '轻质高强度金属，X射线几乎可完全穿透。但其粉尘对人体有毒。', use: 'X射线窗口、航天合金、核反应堆' },
+    5:  { symbol: 'B',  name: '硼',  nameEn: 'Boron',     number: 5,  year: '1808', desc: '类金属元素，硬度仅次于金刚石。在自然界中不以单质形式存在。', use: '硼玻璃、清洁剂、半导体掺杂' },
+    6:  { symbol: 'C',  name: '碳',  nameEn: 'Carbon',    number: 6,  year: '古代', desc: '生命的基础元素，有金刚石和石墨等多种同素异形体。有机化学的核心。', use: '钻石、燃料、碳纤维、有机化合物' },
+    7:  { symbol: 'N',  name: '氮',  nameEn: 'Nitrogen',  number: 7,  year: '1772', desc: '大气中含量最多的气体（78%），是蛋白质和DNA的重要组成元素。', use: '化肥、炸药、食品保鲜、液氮冷冻' },
+    8:  { symbol: 'O',  name: '氧',  nameEn: 'Oxygen',    number: 8,  year: '1774', desc: '生命必需的元素，地壳中含量最多的元素。支持燃烧和呼吸。', use: '呼吸、炼钢、医疗供氧、火箭氧化剂' },
+    9:  { symbol: 'F',  name: '氟',  nameEn: 'Fluorine',  number: 9,  year: '1886', desc: '最活泼的非金属元素，几乎能与所有元素反应。牙膏中添加氟化物防龋齿。', use: '含氟牙膏、特氟龙涂层、制冷剂' },
+    10: { symbol: 'Ne', name: '氖',  nameEn: 'Neon',      number: 10, year: '1898', desc: '惰性气体，通电时发出醒目的橙红色光。霓虹灯因它而得名。', use: '霓虹灯、激光器、高压指示灯' },
+};
+
+// ========== 任务数据 ==========
+const DAILY_TASKS_POOL = [
+    { id: 'd1', title: '合成3个氦元素',   desc: '将氢元素两两合成', target: 3,  element: 2, type: 'merge',   reward: { type: 'shovel', amount: 1 }, rewardText: '铲子 x1' },
+    { id: 'd2', title: '合成2个锂元素',   desc: '将氦元素两两合成', target: 2,  element: 3, type: 'merge',   reward: { type: 'swap', amount: 1 },   rewardText: '交换器 x1' },
+    { id: 'd3', title: '收集5种不同元素', desc: '解锁不同种类的元素', target: 5,  element: 0, type: 'collect', reward: { type: 'copy', amount: 1 },   rewardText: '复制器 x1' },
+    { id: 'd4', title: '合成5个氦元素',   desc: '大量生产氦气',     target: 5,  element: 2, type: 'merge',   reward: { type: 'shovel', amount: 2 }, rewardText: '铲子 x2' },
+    { id: 'd5', title: '合成1个碳元素',   desc: '碳是生命的基础',   target: 1,  element: 6, type: 'merge',   reward: { type: 'copy', amount: 1 },   rewardText: '复制器 x1' },
+    { id: 'd6', title: '生产10个元素方块', desc: '从生产单元获取方块', target: 10, element: 0, type: 'produce', reward: { type: 'swap', amount: 1 },   rewardText: '交换器 x1' },
+];
+
+const ACHIEVEMENTS = [
+    { id: 'a1',  title: '初入实验室',     desc: '完成第一次合成',         target: 1,  type: 'total_merge', reward: { type: 'shovel', amount: 1 }, rewardText: '铲子 x1' },
+    { id: 'a2',  title: '元素新手',       desc: '收集3种不同元素',        target: 3,  type: 'collect',     reward: { type: 'swap', amount: 1 },   rewardText: '交换器 x1' },
+    { id: 'a3',  title: '首次合成碳',     desc: '合成出碳元素(C)',        target: 1,  element: 6, type: 'first_merge', reward: { type: 'copy', amount: 1 },   rewardText: '复制器 x1' },
+    { id: 'a4',  title: '元素收藏家',     desc: '收集5种不同元素',        target: 5,  type: 'collect',     reward: { type: 'shovel', amount: 2 }, rewardText: '铲子 x2' },
+    { id: 'a5',  title: '合成大师',       desc: '累计完成50次合成',       target: 50, type: 'total_merge', reward: { type: 'swap', amount: 2 },   rewardText: '交换器 x2' },
+    { id: 'a6',  title: '首次合成氧',     desc: '合成出氧元素(O)',        target: 1,  element: 8, type: 'first_merge', reward: { type: 'copy', amount: 1 },   rewardText: '复制器 x1' },
+    { id: 'a7',  title: '首次合成氖',     desc: '合成出氖元素(Ne)',       target: 1,  element: 10, type: 'first_merge', reward: { type: 'shovel', amount: 3 }, rewardText: '铲子 x3' },
+    { id: 'a8',  title: '集齐前10种元素', desc: '解锁全部10种元素',       target: 10, type: 'collect',     reward: { type: 'copy', amount: 3 },   rewardText: '复制器 x3' },
+    { id: 'a9',  title: '合成专家',       desc: '累计完成100次合成',      target: 100,type: 'total_merge', reward: { type: 'swap', amount: 3 },   rewardText: '交换器 x3' },
+    { id: 'a10', title: '元素之王',       desc: '累计完成200次合成',      target: 200,type: 'total_merge', reward: { type: 'copy', amount: 2 },   rewardText: '复制器 x2' },
+];
+
+// ========== 商城数据 ==========
+const SHOP_ITEMS = [
+    { id: 's1', name: '铲子',   icon: "\u26CF",  desc: '移除一个不需要的方块',           tool: 'shovel', amount: 1, cost: '观看广告' },
+    { id: 's2', name: '交换器', icon: "\u21C4",  desc: '交换两个方块的位置',             tool: 'swap',   amount: 1, cost: '观看广告' },
+    { id: 's3', name: '复制器', icon: "\u274F",  desc: '复制一个现有方块（不可复制最高级）', tool: 'copy',   amount: 1, cost: '观看广告' },
+    { id: 's4', name: '铲子礼包', icon: "\u{1F381}", desc: '获得3个铲子',                 tool: 'shovel', amount: 3, cost: '特惠礼包' },
+];
+
+
+// ========== 元素合成实验室 - 核心游戏逻辑 ==========
+
+class ElementGame {
+    constructor() {
+        // 游戏状态
+        this.grid = new Array(CONFIG.GRID_SIZE * CONFIG.GRID_SIZE).fill(null);
+        this.productionQueue = [];
+        this.productionTimer = 0;
+        this.lastProductionTime = Date.now();
+        this.unlockedElements = new Set([1]); // 氢默认解锁
+        this.tools = { shovel: 3, swap: 2, copy: 1 };
+        this.activeTool = null;
+        this.swapFirstCell = null;
+        this.totalMerges = 0;
+        this.mergeCountByElement = {};
+        this.producedCount = 0;
+        this.highestElement = 1;
+
+        // 任务状态
+        this.dailyTasks = [];
+        this.achievementProgress = {};
+        this.claimedAchievements = new Set();
+        this.claimedDailyTasks = new Set();
+        this.lastDailyReset = null;
+
+        // 拖拽状态
+        this.dragging = null;
+        this.dragSource = null; // { type: 'grid'|'production', index: number }
+        this.dragElement = null;
+        this.dragOffsetX = 0;
+        this.dragOffsetY = 0;
+
+        // UI缓存
+        this.gridCells = [];
+        this.prodSlots = [];
+
+        this.init();
+    }
+
+    // ========== 初始化 ==========
+    init() {
+        this.loadGame();
+        this.buildGrid();
+        this.buildProductionSlots();
+        this.initDailyTasks();
+        this.bindEvents();
+        this.initStarterElements();
+        this.startProductionLoop();
+        this.updateAllUI();
+    }
+
+    // 新游戏初始方块 - 给玩家2个H和1个He作为起步
+    initStarterElements() {
+        // 只在全空网格且生产队列为空时放置初始元素（真正的新游戏）
+        const hasAny = this.grid.some(c => c !== null) || this.productionQueue.length > 0;
+        if (hasAny) return;
+        this.grid[14] = 1; // H
+        this.grid[15] = 1; // H
+        this.grid[20] = 1; // H
+        this.grid[21] = 2; // He
+        this.unlockedElements.add(1);
+        this.unlockedElements.add(2);
+        this.renderGrid();
+    }
+
+    // ========== 构建网格 ==========
+    buildGrid() {
+        const gridEl = document.getElementById('grid');
+        gridEl.innerHTML = '';
+        this.gridCells = [];
+        for (let i = 0; i < CONFIG.GRID_SIZE * CONFIG.GRID_SIZE; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'grid-cell';
+            cell.dataset.index = i;
+            gridEl.appendChild(cell);
+            this.gridCells.push(cell);
+        }
+        this.renderGrid();
+    }
+
+    // ========== 构建生产槽位 ==========
+    buildProductionSlots() {
+        const container = document.getElementById('production-slots');
+        container.innerHTML = '';
+        this.prodSlots = [];
+        for (let i = 0; i < CONFIG.PRODUCTION_MAX; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'prod-slot';
+            slot.dataset.prodIndex = i;
+            container.appendChild(slot);
+            this.prodSlots.push(slot);
+        }
+        this.renderProduction();
+    }
+
+    // ========== 渲染网格 ==========
+    renderGrid() {
+        for (let i = 0; i < this.grid.length; i++) {
+            const cell = this.gridCells[i];
+            const el = this.grid[i];
+            // 清除旧内容（但保留高亮类）
+            const existing = cell.querySelector('.element-block');
+            if (existing) existing.remove();
+
+            if (el !== null) {
+                cell.classList.add('occupied');
+                cell.appendChild(this.createElementBlock(el));
+            } else {
+                cell.classList.remove('occupied');
+            }
+        }
+        this.updateEmptySlots();
+    }
+
+    // ========== 渲染生产区 ==========
+    renderProduction() {
+        for (let i = 0; i < CONFIG.PRODUCTION_MAX; i++) {
+            const slot = this.prodSlots[i];
+            const existing = slot.querySelector('.element-block');
+            if (existing) existing.remove();
+
+            if (i < this.productionQueue.length) {
+                slot.classList.add('filled');
+                slot.appendChild(this.createElementBlock(this.productionQueue[i]));
+            } else {
+                slot.classList.remove('filled');
+            }
+        }
+        document.getElementById('prod-status').textContent =
+            `${this.productionQueue.length}/${CONFIG.PRODUCTION_MAX}`;
+    }
+
+    // ========== 创建元素方块DOM ==========
+    createElementBlock(atomicNumber) {
+        const data = ELEMENTS[atomicNumber];
+        if (!data) return document.createElement('div');
+        const block = document.createElement('div');
+        block.className = `element-block element-${atomicNumber}`;
+        block.innerHTML = `
+            <span class="element-symbol">${data.symbol}</span>
+            <span class="element-number">${atomicNumber}</span>
+        `;
+        return block;
+    }
+
+    // ========== 生产逻辑 ==========
+    startProductionLoop() {
+        this.productionInterval = setInterval(() => this.updateProduction(), 250);
+    }
+
+    updateProduction() {
+        const now = Date.now();
+        const elapsed = now - this.lastProductionTime;
+        const progress = Math.min(elapsed / CONFIG.PRODUCTION_INTERVAL, 1);
+
+        // 更新进度条
+        const bar = document.getElementById('prod-timer-bar');
+        bar.style.width = `${progress * 100}%`;
+
+        if (elapsed >= CONFIG.PRODUCTION_INTERVAL) {
+            this.produceElement();
+            this.lastProductionTime = now;
+        }
+    }
+
+    produceElement() {
+        if (this.productionQueue.length >= CONFIG.PRODUCTION_MAX) return;
+
+        const element = Math.random() < CONFIG.H_PROBABILITY ? 1 : 2;
+        this.productionQueue.push(element);
+        this.producedCount++;
+        if (element === 2) this.unlockedElements.add(2);
+        this.renderProduction();
+        this.updateTaskProgress('produce', 0, 1);
+        this.saveGame();
+    }
+
+    speedUpProduction() {
+        if (this.productionQueue.length >= CONFIG.PRODUCTION_MAX) {
+            this.showToast('生产队列已满，请先放置方块！');
+            return;
+        }
+        this.produceElement();
+        this.lastProductionTime = Date.now();
+        this.showToast('加速生产成功！');
+    }
+
+    // ========== 拖拽系统 ==========
+    bindEvents() {
+        const app = document.getElementById('app');
+
+        // 触摸/鼠标事件（统一处理）
+        app.addEventListener('mousedown', (e) => this.onDragStart(e));
+        app.addEventListener('mousemove', (e) => this.onDragMove(e));
+        app.addEventListener('mouseup', (e) => this.onDragEnd(e));
+        app.addEventListener('touchstart', (e) => this.onDragStart(e), { passive: false });
+        app.addEventListener('touchmove', (e) => this.onDragMove(e), { passive: false });
+        app.addEventListener('touchend', (e) => this.onDragEnd(e));
+
+        // 加速按钮
+        document.getElementById('speed-btn').addEventListener('click', () => this.speedUpProduction());
+
+        // 道具按钮
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleTool(btn.dataset.tool);
+            });
+        });
+
+        // 底部菜单
+        document.querySelectorAll('.menu-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.showScreen(btn.dataset.page));
+        });
+
+        // 返回按钮
+        document.querySelectorAll('.back-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.showScreen('game'));
+        });
+
+        // 任务标签页
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.switchTaskTab(btn.dataset.tab));
+        });
+
+        // 弹窗关闭
+        document.querySelectorAll('.modal-close').forEach(btn => {
+            btn.addEventListener('click', () => this.closeAllModals());
+        });
+        document.querySelectorAll('.modal-overlay').forEach(el => {
+            el.addEventListener('click', () => this.closeAllModals());
+        });
+
+        // 重置游戏
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            if (confirm('确定要重置游戏吗？所有进度将丢失！')) {
+                this.resetGame();
+            }
+        });
+    }
+
+    getEventPos(e) {
+        if (e.touches && e.touches.length > 0) {
+            return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }
+        if (e.changedTouches && e.changedTouches.length > 0) {
+            return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+        }
+        return { x: e.clientX, y: e.clientY };
+    }
+
+    onDragStart(e) {
+        // 检查是否有活跃道具
+        if (this.activeTool) {
+            this.handleToolClick(e);
+            return;
+        }
+
+        const pos = this.getEventPos(e);
+        const target = document.elementFromPoint(pos.x, pos.y);
+        if (!target) return;
+
+        // 从网格拖拽
+        const cell = target.closest('.grid-cell');
+        if (cell) {
+            const index = parseInt(cell.dataset.index);
+            if (this.grid[index] !== null) {
+                e.preventDefault();
+                this.startDrag(this.grid[index], { type: 'grid', index }, pos);
+                // 暂时从网格移除
+                cell.querySelector('.element-block')?.classList.add('hidden');
+                return;
+            }
+        }
+
+        // 从生产区拖拽
+        const prodSlot = target.closest('.prod-slot');
+        if (prodSlot && prodSlot.classList.contains('filled')) {
+            const prodIndex = parseInt(prodSlot.dataset.prodIndex);
+            if (prodIndex < this.productionQueue.length) {
+                e.preventDefault();
+                this.startDrag(this.productionQueue[prodIndex], { type: 'production', index: prodIndex }, pos);
+                prodSlot.querySelector('.element-block')?.classList.add('hidden');
+                return;
+            }
+        }
+    }
+
+    startDrag(elementNum, source, pos) {
+        this.dragging = elementNum;
+        this.dragSource = source;
+
+        // 创建拖拽元素
+        const data = ELEMENTS[elementNum];
+        this.dragElement = document.createElement('div');
+        this.dragElement.className = `element-dragging element-${elementNum}`;
+        this.dragElement.innerHTML = `
+            <span class="element-symbol">${data.symbol}</span>
+            <span class="element-number">${elementNum}</span>
+        `;
+        this.dragElement.style.left = pos.x + 'px';
+        this.dragElement.style.top = pos.y + 'px';
+        document.body.appendChild(this.dragElement);
+    }
+
+    onDragMove(e) {
+        if (!this.dragging) return;
+        e.preventDefault();
+        const pos = this.getEventPos(e);
+        this.dragElement.style.left = pos.x + 'px';
+        this.dragElement.style.top = pos.y + 'px';
+
+        // 高亮目标格子
+        this.clearHighlights();
+        const cell = this.getCellAtPos(pos);
+        if (cell !== null) {
+            const idx = parseInt(cell.dataset.index);
+            const isSelf = this.dragSource?.type === 'grid' && this.dragSource.index === idx;
+            if (this.grid[idx] === null) {
+                cell.classList.add('highlight');
+            } else if (this.grid[idx] === this.dragging && !isSelf) {
+                cell.classList.add('highlight-merge');
+            }
+        }
+    }
+
+    onDragEnd(e) {
+        if (!this.dragging) return;
+        const pos = this.getEventPos(e);
+
+        // 清除拖拽元素
+        if (this.dragElement) {
+            this.dragElement.remove();
+            this.dragElement = null;
+        }
+        this.clearHighlights();
+
+        const targetCell = this.getCellAtPos(pos);
+        let placed = false;
+
+        if (targetCell !== null) {
+            const targetIdx = parseInt(targetCell.dataset.index);
+
+            if (this.grid[targetIdx] === null) {
+                // 放置到空格子
+                this.placeElement(targetIdx, this.dragging);
+                this.removeFromSource();
+                placed = true;
+            } else if (this.grid[targetIdx] === this.dragging) {
+                // 合成检查 - 不能和自己合成
+                const isSelf = this.dragSource?.type === 'grid' && this.dragSource.index === targetIdx;
+                if (isSelf) {
+                    // 拖回原位
+                } else if (this.dragging + 1 > CONFIG.MAX_ELEMENT) {
+                    // 已达到最高等级
+                    this.showToast('已达到最高元素等级！');
+                } else {
+                    // 执行合成
+                    this.mergeElements(targetIdx);
+                    this.removeFromSource();
+                    placed = true;
+                }
+            }
+        }
+
+        if (!placed) {
+            // 恢复原位
+            this.restoreSource();
+        }
+
+        this.dragging = null;
+        this.dragSource = null;
+        this.renderGrid();
+        this.renderProduction();
+        this.saveGame();
+    }
+
+    getCellAtPos(pos) {
+        // Temporarily hide drag element so elementFromPoint hits the cell beneath
+        if (this.dragElement) this.dragElement.style.display = 'none';
+        const el = document.elementFromPoint(pos.x, pos.y);
+        if (this.dragElement) this.dragElement.style.display = '';
+        if (!el) return null;
+        const cell = el.closest('.grid-cell');
+        return cell;
+    }
+
+    placeElement(index, element) {
+        this.grid[index] = element;
+    }
+
+    removeFromSource() {
+        if (!this.dragSource) return;
+        if (this.dragSource.type === 'grid') {
+            this.grid[this.dragSource.index] = null;
+        } else if (this.dragSource.type === 'production') {
+            this.productionQueue.splice(this.dragSource.index, 1);
+        }
+    }
+
+    restoreSource() {
+        // 源元素恢复可见
+        if (this.dragSource?.type === 'grid') {
+            const cell = this.gridCells[this.dragSource.index];
+            const block = cell.querySelector('.element-block');
+            if (block) block.classList.remove('hidden');
+        } else if (this.dragSource?.type === 'production') {
+            const slot = this.prodSlots[this.dragSource.index];
+            const block = slot.querySelector('.element-block');
+            if (block) block.classList.remove('hidden');
+        }
+    }
+
+    clearHighlights() {
+        this.gridCells.forEach(cell => {
+            cell.classList.remove('highlight', 'highlight-merge');
+        });
+    }
+
+    // ========== 合成逻辑 ==========
+    mergeElements(targetIdx) {
+        const currentElement = this.grid[targetIdx];
+        const newElement = currentElement + 1;
+
+        if (newElement > CONFIG.MAX_ELEMENT) {
+            this.showToast('已达到最高元素等级！');
+            return;
+        }
+
+        // 执行合成
+        this.grid[targetIdx] = newElement;
+        this.totalMerges++;
+        this.mergeCountByElement[newElement] = (this.mergeCountByElement[newElement] || 0) + 1;
+
+        // 解锁元素
+        const isNew = !this.unlockedElements.has(newElement);
+        this.unlockedElements.add(newElement);
+
+        // 更新最高元素
+        if (newElement > this.highestElement) {
+            this.highestElement = newElement;
+        }
+
+        // 播放特效
+        this.playMergeEffect(targetIdx, newElement);
+
+        if (isNew) {
+            const data = ELEMENTS[newElement];
+            this.showToast(`发现新元素：${data.name}（${data.symbol}）！`);
+        }
+
+        // 更新任务进度
+        this.updateTaskProgress('merge', newElement, 1);
+        this.updateTaskProgress('total_merge', 0, 1);
+        this.updateTaskProgress('first_merge', newElement, 1);
+        this.updateTaskProgress('collect', 0, 0);
+
+        this.updateAllUI();
+    }
+
+    playMergeEffect(cellIndex, newElement) {
+        const cell = this.gridCells[cellIndex];
+        const rect = cell.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const layer = document.getElementById('effects-layer');
+
+        // 闪光
+        const flash = document.createElement('div');
+        flash.className = 'merge-effect';
+        flash.style.left = cx + 'px';
+        flash.style.top = cy + 'px';
+        layer.appendChild(flash);
+        setTimeout(() => flash.remove(), 500);
+
+        // 粒子
+        for (let i = 0; i < 8; i++) {
+            const angle = (Math.PI * 2 / 8) * i;
+            const dist = 30 + Math.random() * 20;
+            const spark = document.createElement('div');
+            spark.className = 'sparkle';
+            spark.style.left = cx + 'px';
+            spark.style.top = cy + 'px';
+            spark.style.setProperty('--tx', `${Math.cos(angle) * dist}px`);
+            spark.style.setProperty('--ty', `${Math.sin(angle) * dist}px`);
+            layer.appendChild(spark);
+            setTimeout(() => spark.remove(), 600);
+        }
+
+        // 文字提示
+        const data = ELEMENTS[newElement];
+        const text = document.createElement('div');
+        text.className = 'level-up-text';
+        text.textContent = `${data.symbol}!`;
+        text.style.left = cx + 'px';
+        text.style.top = cy + 'px';
+        layer.appendChild(text);
+        setTimeout(() => text.remove(), 1000);
+    }
+
+    // ========== 道具系统 ==========
+    toggleTool(toolName) {
+        if (this.activeTool === toolName) {
+            this.activeTool = null;
+            this.swapFirstCell = null;
+            this.updateToolButtons();
+            return;
+        }
+
+        if (this.tools[toolName] <= 0) {
+            this.showToast('道具不足！');
+            return;
+        }
+
+        this.activeTool = toolName;
+        this.swapFirstCell = null;
+        this.updateToolButtons();
+
+        const hints = {
+            shovel: '点击要移除的方块',
+            swap: '点击第一个要交换的方块',
+            copy: '点击要复制的方块',
+        };
+        this.showToast(hints[toolName]);
+    }
+
+    updateToolButtons() {
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.tool === this.activeTool);
+        });
+    }
+
+    handleToolClick(e) {
+        const pos = this.getEventPos(e);
+        const target = document.elementFromPoint(pos.x, pos.y);
+        if (!target) return;
+
+        const cell = target.closest('.grid-cell');
+        if (!cell) return;
+
+        const index = parseInt(cell.dataset.index);
+
+        switch (this.activeTool) {
+            case 'shovel': this.useShovel(index); break;
+            case 'swap': this.useSwap(index); break;
+            case 'copy': this.useCopy(index); break;
+        }
+    }
+
+    useShovel(index) {
+        if (this.grid[index] === null) {
+            this.showToast('该位置没有方块！');
+            return;
+        }
+        this.grid[index] = null;
+        this.tools.shovel--;
+        this.activeTool = null;
+        this.updateToolButtons();
+        this.renderGrid();
+        this.updateToolCounts();
+        this.showToast('方块已移除！');
+        this.saveGame();
+    }
+
+    useSwap(index) {
+        if (this.grid[index] === null) {
+            this.showToast('该位置没有方块！');
+            return;
+        }
+
+        if (this.swapFirstCell === null) {
+            this.swapFirstCell = index;
+            this.gridCells[index].classList.add('highlight');
+            this.showToast('点击第二个要交换的方块');
+        } else {
+            if (index === this.swapFirstCell) {
+                this.gridCells[index].classList.remove('highlight');
+                this.swapFirstCell = null;
+                return;
+            }
+            // 交换
+            const temp = this.grid[this.swapFirstCell];
+            this.grid[this.swapFirstCell] = this.grid[index];
+            this.grid[index] = temp;
+            this.tools.swap--;
+            this.clearHighlights();
+            this.activeTool = null;
+            this.swapFirstCell = null;
+            this.updateToolButtons();
+            this.renderGrid();
+            this.updateToolCounts();
+            this.showToast('交换成功！');
+            this.saveGame();
+        }
+    }
+
+    useCopy(index) {
+        if (this.grid[index] === null) {
+            this.showToast('该位置没有方块！');
+            return;
+        }
+
+        const element = this.grid[index];
+
+        // 不可复制最高级元素
+        if (element === this.highestElement && element > 2) {
+            this.showToast('不能复制最高级元素！');
+            return;
+        }
+
+        // 找到相邻空格放置
+        const emptyNeighbor = this.findEmptyNeighbor(index);
+        if (emptyNeighbor === -1) {
+            // 找任意空格
+            const emptyCell = this.grid.indexOf(null);
+            if (emptyCell === -1) {
+                this.showToast('合成区已满，无法复制！');
+                return;
+            }
+            this.grid[emptyCell] = element;
+        } else {
+            this.grid[emptyNeighbor] = element;
+        }
+
+        this.tools.copy--;
+        this.activeTool = null;
+        this.updateToolButtons();
+        this.renderGrid();
+        this.updateToolCounts();
+        this.showToast('复制成功！');
+        this.saveGame();
+    }
+
+    findEmptyNeighbor(index) {
+        const row = Math.floor(index / CONFIG.GRID_SIZE);
+        const col = index % CONFIG.GRID_SIZE;
+        const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+        for (const [dr, dc] of dirs) {
+            const nr = row + dr;
+            const nc = col + dc;
+            if (nr >= 0 && nr < CONFIG.GRID_SIZE && nc >= 0 && nc < CONFIG.GRID_SIZE) {
+                const ni = nr * CONFIG.GRID_SIZE + nc;
+                if (this.grid[ni] === null) return ni;
+            }
+        }
+        return -1;
+    }
+
+    // ========== 任务系统 ==========
+    initDailyTasks() {
+        const today = new Date().toDateString();
+        if (this.lastDailyReset !== today) {
+            // 重置每日任务 - 随机选3个
+            this.dailyTasks = this.shuffleArray([...DAILY_TASKS_POOL]).slice(0, 3).map(t => ({
+                ...t,
+                progress: 0,
+                claimed: false,
+            }));
+            this.claimedDailyTasks = new Set();
+            this.lastDailyReset = today;
+            this.saveGame();
+        }
+    }
+
+    updateTaskProgress(type, element, amount) {
+        // 每日任务
+        this.dailyTasks.forEach(task => {
+            if (task.claimed) return;
+            if (type === 'merge' && task.type === 'merge' && task.element === element) {
+                task.progress = Math.min(task.progress + amount, task.target);
+            }
+            if (type === 'produce' && task.type === 'produce') {
+                task.progress = Math.min(task.progress + amount, task.target);
+            }
+            if (type === 'collect' && task.type === 'collect') {
+                task.progress = this.unlockedElements.size;
+            }
+        });
+
+        // 成就
+        ACHIEVEMENTS.forEach(ach => {
+            if (this.claimedAchievements.has(ach.id)) return;
+            let progress = this.achievementProgress[ach.id] || 0;
+
+            if (type === 'total_merge' && ach.type === 'total_merge') {
+                progress = this.totalMerges;
+            }
+            if (type === 'collect' && ach.type === 'collect') {
+                progress = this.unlockedElements.size;
+            }
+            if (type === 'first_merge' && ach.type === 'first_merge' && ach.element === element) {
+                progress = 1;
+            }
+            if (type === 'merge' && ach.type === 'total_merge') {
+                progress = this.totalMerges;
+            }
+
+            this.achievementProgress[ach.id] = progress;
+        });
+
+        this.renderTasks();
+    }
+
+    claimDailyTask(taskId) {
+        const task = this.dailyTasks.find(t => t.id === taskId);
+        if (!task || task.claimed || task.progress < task.target) return;
+
+        task.claimed = true;
+        this.claimedDailyTasks.add(taskId);
+        this.grantReward(task.reward);
+        this.showToast(`领取奖励：${task.rewardText}`);
+        this.renderTasks();
+        this.updateToolCounts();
+        this.saveGame();
+    }
+
+    claimAchievement(achId) {
+        const ach = ACHIEVEMENTS.find(a => a.id === achId);
+        if (!ach || this.claimedAchievements.has(achId)) return;
+
+        const progress = this.achievementProgress[achId] || 0;
+        if (progress < ach.target) return;
+
+        this.claimedAchievements.add(achId);
+        this.grantReward(ach.reward);
+        this.showToast(`达成成就：${ach.title}！奖励：${ach.rewardText}`);
+        this.renderTasks();
+        this.updateToolCounts();
+        this.saveGame();
+    }
+
+    grantReward(reward) {
+        if (this.tools[reward.type] !== undefined) {
+            this.tools[reward.type] += reward.amount;
+        }
+    }
+
+    // ========== 图鉴 ==========
+    renderEncyclopedia() {
+        const container = document.getElementById('encyclopedia-grid');
+        container.innerHTML = '';
+
+        for (let i = 1; i <= CONFIG.MAX_ELEMENT; i++) {
+            const data = ELEMENTS[i];
+            const unlocked = this.unlockedElements.has(i);
+            const card = document.createElement('div');
+            card.className = `enc-card ${unlocked ? 'unlocked' : 'locked'}`;
+
+            card.innerHTML = `
+                <div class="enc-icon element-${i}" style="${unlocked ? '' : 'background: var(--bg-card-light) !important;'}">
+                    ${unlocked ? data.symbol : '?'}
+                </div>
+                <div class="enc-name">${unlocked ? data.name : '???'}</div>
+                <div class="enc-number">#${i}</div>
+            `;
+
+            if (unlocked) {
+                card.addEventListener('click', () => this.showElementDetail(i));
+            } else {
+                card.addEventListener('click', () => {
+                    const prevEl = ELEMENTS[i - 1];
+                    this.showToast(`合成路径：两个${prevEl.name}(${prevEl.symbol}) → ${data.name}(${data.symbol})`);
+                });
+            }
+
+            container.appendChild(card);
+        }
+
+        document.getElementById('enc-progress').textContent =
+            `${this.unlockedElements.size}/${CONFIG.MAX_ELEMENT}`;
+    }
+
+    showElementDetail(num) {
+        const data = ELEMENTS[num];
+        const modal = document.getElementById('element-detail-modal');
+
+        const icon = document.getElementById('detail-element-icon');
+        icon.className = `detail-icon element-${num}`;
+        icon.textContent = data.symbol;
+
+        document.getElementById('detail-element-name').textContent =
+            `${data.name} (${data.nameEn})`;
+
+        document.getElementById('detail-element-info').innerHTML = `
+            <p><strong>原子序数：</strong>${data.number}</p>
+            <p><strong>元素符号：</strong>${data.symbol}</p>
+            <p><strong>发现年份：</strong>${data.year}</p>
+            <p><strong>简介：</strong>${data.desc}</p>
+            <p><strong>用途：</strong>${data.use}</p>
+        `;
+
+        modal.classList.remove('hidden');
+    }
+
+    // ========== 任务渲染 ==========
+    renderTasks() {
+        // 每日任务
+        const dailyContainer = document.getElementById('daily-tasks');
+        dailyContainer.innerHTML = '';
+        this.dailyTasks.forEach(task => {
+            const progressPct = Math.min(task.progress / task.target * 100, 100);
+            const canClaim = task.progress >= task.target && !task.claimed;
+
+            const card = document.createElement('div');
+            card.className = 'task-card';
+            card.innerHTML = `
+                <div class="task-title">${task.title}</div>
+                <div class="task-desc">${task.desc}</div>
+                <div class="task-progress-bar">
+                    <div class="task-progress-fill" style="width:${progressPct}%"></div>
+                </div>
+                <div class="task-footer">
+                    <span class="task-reward">${task.rewardText}</span>
+                    <span>${task.progress}/${task.target}</span>
+                    ${task.claimed
+                        ? '<span class="task-claimed">已领取</span>'
+                        : `<button class="task-claim-btn" ${canClaim ? '' : 'disabled'}
+                            data-task-id="${task.id}" data-task-type="daily">
+                            ${canClaim ? '领取' : '进行中'}
+                          </button>`
+                    }
+                </div>
+            `;
+            dailyContainer.appendChild(card);
+        });
+
+        // 成就
+        const achContainer = document.getElementById('achievement-tasks');
+        achContainer.innerHTML = '';
+        ACHIEVEMENTS.forEach(ach => {
+            const progress = this.achievementProgress[ach.id] || 0;
+            const claimed = this.claimedAchievements.has(ach.id);
+            const progressPct = Math.min(progress / ach.target * 100, 100);
+            const canClaim = progress >= ach.target && !claimed;
+
+            const card = document.createElement('div');
+            card.className = 'task-card';
+            card.innerHTML = `
+                <div class="task-title">${ach.title}</div>
+                <div class="task-desc">${ach.desc}</div>
+                <div class="task-progress-bar">
+                    <div class="task-progress-fill" style="width:${progressPct}%"></div>
+                </div>
+                <div class="task-footer">
+                    <span class="task-reward">${ach.rewardText}</span>
+                    <span>${Math.min(progress, ach.target)}/${ach.target}</span>
+                    ${claimed
+                        ? '<span class="task-claimed">已达成</span>'
+                        : `<button class="task-claim-btn" ${canClaim ? '' : 'disabled'}
+                            data-task-id="${ach.id}" data-task-type="achievement">
+                            ${canClaim ? '领取' : '进行中'}
+                          </button>`
+                    }
+                </div>
+            `;
+            achContainer.appendChild(card);
+        });
+
+        // 绑定领取按钮
+        document.querySelectorAll('.task-claim-btn:not([disabled])').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.taskId;
+                const type = btn.dataset.taskType;
+                if (type === 'daily') this.claimDailyTask(id);
+                else this.claimAchievement(id);
+            });
+        });
+    }
+
+    // ========== 商城 ==========
+    renderShop() {
+        const container = document.getElementById('shop-list');
+        container.innerHTML = '';
+        SHOP_ITEMS.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'shop-card';
+            card.innerHTML = `
+                <div class="shop-icon">${item.icon}</div>
+                <div class="shop-info">
+                    <div class="shop-name">${item.name}</div>
+                    <div class="shop-desc">${item.desc}</div>
+                </div>
+                <button class="shop-buy-btn" data-shop-id="${item.id}">${item.cost}</button>
+            `;
+            container.appendChild(card);
+        });
+
+        document.querySelectorAll('.shop-buy-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const item = SHOP_ITEMS.find(s => s.id === btn.dataset.shopId);
+                if (item) {
+                    this.tools[item.tool] += item.amount;
+                    this.updateToolCounts();
+                    this.showToast(`获得 ${item.name} x${item.amount}！`);
+                    this.saveGame();
+                }
+            });
+        });
+    }
+
+    // ========== 界面切换 ==========
+    showScreen(name) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+
+        if (name === 'game') {
+            document.getElementById('game-screen').classList.add('active');
+        } else if (name === 'encyclopedia') {
+            this.renderEncyclopedia();
+            document.getElementById('encyclopedia-screen').classList.add('active');
+        } else if (name === 'tasks') {
+            this.renderTasks();
+            document.getElementById('tasks-screen').classList.add('active');
+        } else if (name === 'shop') {
+            this.renderShop();
+            document.getElementById('shop-screen').classList.add('active');
+        } else if (name === 'settings') {
+            document.getElementById('settings-screen').classList.add('active');
+        }
+    }
+
+    switchTaskTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+        document.getElementById('daily-tasks').classList.toggle('active', tab === 'daily');
+        document.getElementById('achievement-tasks').classList.toggle('active', tab === 'achievement');
+    }
+
+    closeAllModals() {
+        document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+    }
+
+    // ========== UI更新 ==========
+    updateAllUI() {
+        this.updateEmptySlots();
+        this.updateCollectProgress();
+        this.updateToolCounts();
+    }
+
+    updateEmptySlots() {
+        const total = CONFIG.GRID_SIZE * CONFIG.GRID_SIZE;
+        const empty = this.grid.filter(c => c === null).length;
+        document.getElementById('empty-slots').textContent = empty;
+
+        // 网格满提示
+        const container = document.getElementById('grid-container');
+        const existing = container.querySelector('.grid-full-warning');
+        if (empty === 0 && !existing) {
+            const warning = document.createElement('div');
+            warning.className = 'grid-full-warning';
+            warning.textContent = '合成区已满！请合成腾出空间';
+            container.appendChild(warning);
+        } else if (empty > 0 && existing) {
+            existing.remove();
+        }
+    }
+
+    updateCollectProgress() {
+        document.getElementById('collect-progress').textContent = this.unlockedElements.size;
+    }
+
+    updateToolCounts() {
+        document.getElementById('shovel-count').textContent = this.tools.shovel;
+        document.getElementById('swap-count').textContent = this.tools.swap;
+        document.getElementById('copy-count').textContent = this.tools.copy;
+    }
+
+    showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.classList.remove('hidden');
+        clearTimeout(this._toastTimer);
+        this._toastTimer = setTimeout(() => toast.classList.add('hidden'), 2000);
+    }
+
+    // ========== 存档系统 ==========
+    saveGame() {
+        const save = {
+            grid: this.grid,
+            productionQueue: this.productionQueue,
+            unlockedElements: Array.from(this.unlockedElements),
+            tools: this.tools,
+            totalMerges: this.totalMerges,
+            mergeCountByElement: this.mergeCountByElement,
+            producedCount: this.producedCount,
+            highestElement: this.highestElement,
+            dailyTasks: this.dailyTasks,
+            achievementProgress: this.achievementProgress,
+            claimedAchievements: Array.from(this.claimedAchievements),
+            claimedDailyTasks: Array.from(this.claimedDailyTasks),
+            lastDailyReset: this.lastDailyReset,
+        };
+        try {
+            localStorage.setItem('elementGame', JSON.stringify(save));
+        } catch (e) {
+            // localStorage不可用时静默失败
+        }
+    }
+
+    loadGame() {
+        try {
+            const raw = localStorage.getItem('elementGame');
+            if (!raw) return;
+            const save = JSON.parse(raw);
+
+            if (save.grid) this.grid = save.grid;
+            if (save.productionQueue) this.productionQueue = save.productionQueue;
+            if (save.unlockedElements) this.unlockedElements = new Set(save.unlockedElements);
+            if (save.tools) this.tools = save.tools;
+            if (save.totalMerges) this.totalMerges = save.totalMerges;
+            if (save.mergeCountByElement) this.mergeCountByElement = save.mergeCountByElement;
+            if (save.producedCount) this.producedCount = save.producedCount;
+            if (save.highestElement) this.highestElement = save.highestElement;
+            if (save.dailyTasks) this.dailyTasks = save.dailyTasks;
+            if (save.achievementProgress) this.achievementProgress = save.achievementProgress;
+            if (save.claimedAchievements) this.claimedAchievements = new Set(save.claimedAchievements);
+            if (save.claimedDailyTasks) this.claimedDailyTasks = new Set(save.claimedDailyTasks);
+            if (save.lastDailyReset) this.lastDailyReset = save.lastDailyReset;
+        } catch (e) {
+            // 加载失败使用默认值
+        }
+    }
+
+    resetGame() {
+        localStorage.removeItem('elementGame');
+        location.reload();
+    }
+
+    // ========== 工具方法 ==========
+    shuffleArray(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    }
+}
+
+// ========== 启动游戏 ==========
+document.addEventListener('DOMContentLoaded', () => {
+    window.game = new ElementGame();
+});
+
+</script>
+</body>
+</html>
