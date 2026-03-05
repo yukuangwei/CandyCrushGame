@@ -4,9 +4,8 @@ class ElementGame {
     constructor() {
         // 游戏状态
         this.grid = new Array(CONFIG.GRID_SIZE * CONFIG.GRID_SIZE).fill(null);
-        this.productionQueue = [];
-        this.productionTimer = 0;
         this.lastProductionTime = Date.now();
+        this.productionPaused = false;
         this.unlockedElements = new Set([1]); // 氢默认解锁
         this.tools = { shovel: 3, swap: 2, copy: 1 };
         this.activeTool = null;
@@ -25,14 +24,11 @@ class ElementGame {
 
         // 拖拽状态
         this.dragging = null;
-        this.dragSource = null; // { type: 'grid'|'production', index: number }
+        this.dragSource = null; // { type: 'grid', index: number }
         this.dragElement = null;
-        this.dragOffsetX = 0;
-        this.dragOffsetY = 0;
 
         // UI缓存
         this.gridCells = [];
-        this.prodSlots = [];
 
         this.init();
     }
@@ -41,7 +37,6 @@ class ElementGame {
     init() {
         this.loadGame();
         this.buildGrid();
-        this.buildProductionSlots();
         this.initDailyTasks();
         this.bindEvents();
         this.initStarterElements();
@@ -51,8 +46,8 @@ class ElementGame {
 
     // 新游戏初始方块 - 给玩家2个H和1个He作为起步
     initStarterElements() {
-        // 只在全空网格且生产队列为空时放置初始元素（真正的新游戏）
-        const hasAny = this.grid.some(c => c !== null) || this.productionQueue.length > 0;
+        // 只在全空网格时放置初始元素（真正的新游戏）
+        const hasAny = this.grid.some(c => c !== null);
         if (hasAny) return;
         this.grid[14] = 1; // H
         this.grid[15] = 1; // H
@@ -78,21 +73,6 @@ class ElementGame {
         this.renderGrid();
     }
 
-    // ========== 构建生产槽位 ==========
-    buildProductionSlots() {
-        const container = document.getElementById('production-slots');
-        container.innerHTML = '';
-        this.prodSlots = [];
-        for (let i = 0; i < CONFIG.PRODUCTION_MAX; i++) {
-            const slot = document.createElement('div');
-            slot.className = 'prod-slot';
-            slot.dataset.prodIndex = i;
-            container.appendChild(slot);
-            this.prodSlots.push(slot);
-        }
-        this.renderProduction();
-    }
-
     // ========== 渲染网格 ==========
     renderGrid() {
         for (let i = 0; i < this.grid.length; i++) {
@@ -110,24 +90,6 @@ class ElementGame {
             }
         }
         this.updateEmptySlots();
-    }
-
-    // ========== 渲染生产区 ==========
-    renderProduction() {
-        for (let i = 0; i < CONFIG.PRODUCTION_MAX; i++) {
-            const slot = this.prodSlots[i];
-            const existing = slot.querySelector('.element-block');
-            if (existing) existing.remove();
-
-            if (i < this.productionQueue.length) {
-                slot.classList.add('filled');
-                slot.appendChild(this.createElementBlock(this.productionQueue[i]));
-            } else {
-                slot.classList.remove('filled');
-            }
-        }
-        document.getElementById('prod-status').textContent =
-            `${this.productionQueue.length}/${CONFIG.PRODUCTION_MAX}`;
     }
 
     // ========== 创建元素方块DOM ==========
@@ -148,13 +110,35 @@ class ElementGame {
         this.productionInterval = setInterval(() => this.updateProduction(), 250);
     }
 
+    getEmptyCells() {
+        const empty = [];
+        for (let i = 0; i < this.grid.length; i++) {
+            if (this.grid[i] === null) empty.push(i);
+        }
+        return empty;
+    }
+
     updateProduction() {
+        const emptyCells = this.getEmptyCells();
+        const bar = document.getElementById('prod-timer-bar');
+        const statusEl = document.getElementById('prod-status');
+
+        // 网格满时暂停生产
+        if (emptyCells.length === 0) {
+            this.productionPaused = true;
+            bar.style.width = '0%';
+            statusEl.textContent = '已暂停';
+            statusEl.style.color = 'var(--danger)';
+            return;
+        }
+
+        this.productionPaused = false;
+        statusEl.textContent = '生产中';
+        statusEl.style.color = 'var(--accent)';
+
         const now = Date.now();
         const elapsed = now - this.lastProductionTime;
         const progress = Math.min(elapsed / CONFIG.PRODUCTION_INTERVAL, 1);
-
-        // 更新进度条
-        const bar = document.getElementById('prod-timer-bar');
         bar.style.width = `${progress * 100}%`;
 
         if (elapsed >= CONFIG.PRODUCTION_INTERVAL) {
@@ -164,20 +148,30 @@ class ElementGame {
     }
 
     produceElement() {
-        if (this.productionQueue.length >= CONFIG.PRODUCTION_MAX) return;
+        const emptyCells = this.getEmptyCells();
+        if (emptyCells.length === 0) return;
 
         const element = Math.random() < CONFIG.H_PROBABILITY ? 1 : 2;
-        this.productionQueue.push(element);
+        // 随机选一个空位放入
+        const targetIdx = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+        this.grid[targetIdx] = element;
         this.producedCount++;
         if (element === 2) this.unlockedElements.add(2);
-        this.renderProduction();
+
+        // 播放入场动画
+        this.renderGrid();
+        const block = this.gridCells[targetIdx].querySelector('.element-block');
+        if (block) block.classList.add('element-pop-in');
+
         this.updateTaskProgress('produce', 0, 1);
+        this.updateAllUI();
         this.saveGame();
     }
 
     speedUpProduction() {
-        if (this.productionQueue.length >= CONFIG.PRODUCTION_MAX) {
-            this.showToast('生产队列已满，请先放置方块！');
+        const emptyCells = this.getEmptyCells();
+        if (emptyCells.length === 0) {
+            this.showToast('合成区已满，请先合成腾出空间！');
             return;
         }
         this.produceElement();
@@ -267,20 +261,8 @@ class ElementGame {
             if (this.grid[index] !== null) {
                 e.preventDefault();
                 this.startDrag(this.grid[index], { type: 'grid', index }, pos);
-                // 暂时从网格移除
+                // 暂时隐藏原位置方块
                 cell.querySelector('.element-block')?.classList.add('hidden');
-                return;
-            }
-        }
-
-        // 从生产区拖拽
-        const prodSlot = target.closest('.prod-slot');
-        if (prodSlot && prodSlot.classList.contains('filled')) {
-            const prodIndex = parseInt(prodSlot.dataset.prodIndex);
-            if (prodIndex < this.productionQueue.length) {
-                e.preventDefault();
-                this.startDrag(this.productionQueue[prodIndex], { type: 'production', index: prodIndex }, pos);
-                prodSlot.querySelector('.element-block')?.classList.add('hidden');
                 return;
             }
         }
@@ -371,7 +353,6 @@ class ElementGame {
         this.dragging = null;
         this.dragSource = null;
         this.renderGrid();
-        this.renderProduction();
         this.saveGame();
     }
 
@@ -393,8 +374,6 @@ class ElementGame {
         if (!this.dragSource) return;
         if (this.dragSource.type === 'grid') {
             this.grid[this.dragSource.index] = null;
-        } else if (this.dragSource.type === 'production') {
-            this.productionQueue.splice(this.dragSource.index, 1);
         }
     }
 
@@ -403,10 +382,6 @@ class ElementGame {
         if (this.dragSource?.type === 'grid') {
             const cell = this.gridCells[this.dragSource.index];
             const block = cell.querySelector('.element-block');
-            if (block) block.classList.remove('hidden');
-        } else if (this.dragSource?.type === 'production') {
-            const slot = this.prodSlots[this.dragSource.index];
-            const block = slot.querySelector('.element-block');
             if (block) block.classList.remove('hidden');
         }
     }
@@ -975,7 +950,6 @@ class ElementGame {
     saveGame() {
         const save = {
             grid: this.grid,
-            productionQueue: this.productionQueue,
             unlockedElements: Array.from(this.unlockedElements),
             tools: this.tools,
             totalMerges: this.totalMerges,
@@ -1002,7 +976,6 @@ class ElementGame {
             const save = JSON.parse(raw);
 
             if (save.grid) this.grid = save.grid;
-            if (save.productionQueue) this.productionQueue = save.productionQueue;
             if (save.unlockedElements) this.unlockedElements = new Set(save.unlockedElements);
             if (save.tools) this.tools = save.tools;
             if (save.totalMerges) this.totalMerges = save.totalMerges;
