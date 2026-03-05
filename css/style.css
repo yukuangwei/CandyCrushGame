@@ -9,20 +9,20 @@
 }
 
 :root {
-    --primary: #4A90D9;
-    --primary-dark: #357ABD;
+    --primary: #5271FF;
+    --primary-dark: #3d5ce6;
     --bg: #f0f2f5;
     --bg-card: #ffffff;
     --bg-card-light: #f5f6fa;
     --text: #1a1a2e;
     --text-secondary: #6b7280;
-    --accent: #10b981;
+    --accent: #5271FF;
     --danger: #ef4444;
     --warning: #f59e0b;
     --success: #22c55e;
-    --grid-bg: #e8ecf1;
-    --grid-line: #d1d5db;
-    --cell-bg: #f9fafb;
+    --grid-bg: #CDD6FF;
+    --grid-line: #92A5FF;
+    --cell-bg: #AAB7F6;
     --shadow: 0 4px 20px rgba(0,0,0,0.08);
     --radius: 12px;
     --radius-sm: 8px;
@@ -163,21 +163,22 @@ html, body {
     padding: 6px 12px 4px;
     min-height: 0;
     position: relative;
+    overflow: hidden;
+    background: #ffffff;
 }
 
 #grid {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
-    grid-template-rows: repeat(6, 1fr);
+    grid-template-rows: repeat(9, 1fr);
     gap: 4px;
-    width: 100%;
+    width: calc(100vw - 24px);
     max-width: 360px;
-    aspect-ratio: 1;
     background: var(--grid-bg);
     border: 2px solid var(--grid-line);
     border-radius: var(--radius);
     padding: 6px;
-    margin-top: 4px;
+    overflow: hidden;
 }
 
 .grid-cell {

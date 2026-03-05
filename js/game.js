@@ -3,7 +3,7 @@
 class ElementGame {
     constructor() {
         // 游戏状态
-        this.grid = new Array(CONFIG.GRID_SIZE * CONFIG.GRID_SIZE).fill(null);
+        this.grid = new Array(CONFIG.GRID_COLS * CONFIG.GRID_ROWS).fill(null);
         this.lastProductionTime = Date.now();
         this.productionPaused = false;
         this.unlockedElements = new Set([1]); // 氢默认解锁
@@ -49,10 +49,13 @@ class ElementGame {
         // 只在全空网格时放置初始元素（真正的新游戏）
         const hasAny = this.grid.some(c => c !== null);
         if (hasAny) return;
-        this.grid[14] = 1; // H
-        this.grid[15] = 1; // H
-        this.grid[20] = 1; // H
-        this.grid[21] = 2; // He
+        // 放在网格中间区域 (第4行, cols=6)
+        const midRow = Math.floor(CONFIG.GRID_ROWS / 2);
+        const base = midRow * CONFIG.GRID_COLS;
+        this.grid[base + 2] = 1; // H
+        this.grid[base + 3] = 1; // H
+        this.grid[base + CONFIG.GRID_COLS + 2] = 1; // H
+        this.grid[base + CONFIG.GRID_COLS + 3] = 2; // He
         this.unlockedElements.add(1);
         this.unlockedElements.add(2);
         this.renderGrid();
@@ -63,7 +66,7 @@ class ElementGame {
         const gridEl = document.getElementById('grid');
         gridEl.innerHTML = '';
         this.gridCells = [];
-        for (let i = 0; i < CONFIG.GRID_SIZE * CONFIG.GRID_SIZE; i++) {
+        for (let i = 0; i < CONFIG.GRID_COLS * CONFIG.GRID_ROWS; i++) {
             const cell = document.createElement('div');
             cell.className = 'grid-cell';
             cell.dataset.index = i;
@@ -607,14 +610,14 @@ class ElementGame {
     }
 
     findEmptyNeighbor(index) {
-        const row = Math.floor(index / CONFIG.GRID_SIZE);
-        const col = index % CONFIG.GRID_SIZE;
+        const row = Math.floor(index / CONFIG.GRID_COLS);
+        const col = index % CONFIG.GRID_COLS;
         const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
         for (const [dr, dc] of dirs) {
             const nr = row + dr;
             const nc = col + dc;
-            if (nr >= 0 && nr < CONFIG.GRID_SIZE && nc >= 0 && nc < CONFIG.GRID_SIZE) {
-                const ni = nr * CONFIG.GRID_SIZE + nc;
+            if (nr >= 0 && nr < CONFIG.GRID_ROWS && nc >= 0 && nc < CONFIG.GRID_COLS) {
+                const ni = nr * CONFIG.GRID_COLS + nc;
                 if (this.grid[ni] === null) return ni;
             }
         }
@@ -911,7 +914,7 @@ class ElementGame {
     }
 
     updateEmptySlots() {
-        const total = CONFIG.GRID_SIZE * CONFIG.GRID_SIZE;
+        const total = CONFIG.GRID_COLS * CONFIG.GRID_ROWS;
         const empty = this.grid.filter(c => c === null).length;
         document.getElementById('empty-slots').textContent = empty;
 
@@ -975,7 +978,13 @@ class ElementGame {
             if (!raw) return;
             const save = JSON.parse(raw);
 
-            if (save.grid) this.grid = save.grid;
+            if (save.grid) {
+                const expectedSize = CONFIG.GRID_COLS * CONFIG.GRID_ROWS;
+                if (save.grid.length === expectedSize) {
+                    this.grid = save.grid;
+                }
+                // 旧存档尺寸不匹配则使用默认空网格
+            }
             if (save.unlockedElements) this.unlockedElements = new Set(save.unlockedElements);
             if (save.tools) this.tools = save.tools;
             if (save.totalMerges) this.totalMerges = save.totalMerges;
